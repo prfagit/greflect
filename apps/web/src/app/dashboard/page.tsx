@@ -80,18 +80,16 @@ export default function Dashboard() {
           setMessageCount(0);
         }
 
-        // Get latest identity snapshot from ANY run (not just current one)
-        const identityRes = await fetch(`/api/db/identity_snapshots?order=created_at.desc&limit=1`);
-        const identityData = await identityRes.json();
-        if (identityData.length > 0) {
-          const identity = identityData[0].identity;
-          if (identity.identitySnapshot) {
+        // Get latest identity snapshot using our custom API
+        const identityRes = await fetch('/api/identity');
+        if (identityRes.ok) {
+          const identityData = await identityRes.json();
+          if (!identityData.error) {
+            const identity = identityData.identity;
             setCurrentIdentity({
-              ...identity.identitySnapshot,
-              iteration: identity.iteration
+              ...identity,
+              iteration: identityData.iteration
             });
-          } else {
-            setCurrentIdentity(identity);
           }
         }
       }
@@ -173,7 +171,25 @@ export default function Dashboard() {
   useEffect(() => {
     fetchInitialData();
     fetchMessages(0);
-    
+
+    // Set up SSE for real-time identity updates
+    const identityEventSource = new EventSource('/api/sse/identity');
+    identityEventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const identity = data.identity;
+        setCurrentIdentity({
+          ...identity,
+          iteration: data.iteration
+        });
+      } catch (error) {
+        console.error('Error parsing identity SSE data:', error);
+      }
+    };
+    identityEventSource.onerror = (error) => {
+      console.error('Identity SSE error:', error);
+    };
+
     // Check for new messages every 30 seconds (less frequent since we have pagination)
     const interval = setInterval(() => {
       fetchInitialData(); // Update run status and identity
@@ -182,9 +198,12 @@ export default function Dashboard() {
         fetchMessages(0);
       }
     }, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
+
+    return () => {
+      clearInterval(interval);
+      identityEventSource.close();
+    };
+  }, [offset]);
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('en-US', { 
