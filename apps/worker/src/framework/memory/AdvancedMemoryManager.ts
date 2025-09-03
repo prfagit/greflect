@@ -197,6 +197,12 @@ export class AdvancedMemoryManager {
     // Search each memory type
     for (const type of memoryTypes) {
       try {
+        // Only search in valid collections
+        if (!['episodic', 'semantic', 'procedural'].includes(type)) {
+          console.log(`Skipping invalid memory type: ${type}`);
+          continue;
+        }
+        
         const results = await this.qdrant.search(type, {
           vector: embedding,
           limit: Math.ceil(limit / memoryTypes.length),
