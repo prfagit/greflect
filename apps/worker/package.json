@@ -1,0 +1,25 @@
+{
+  "name": "greflect-worker",
+  "version": "0.1.0",
+  "author": "@prfagit <https://prfa.me/>",
+  "type": "module",
+  "main": "dist/index-v2.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p .",
+    "start": "node dist/index-v2.js"
+  },
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.15.1",
+    "dotenv": "^16.4.7",
+    "openai": "^5.16.0",
+    "pg": "^8.13.1",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2"
+  }
+}

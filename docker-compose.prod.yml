@@ -1,0 +1,78 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: greflect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-greflect}
+      POSTGRES_DB: greflect
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init-v2.sql:/docker-entrypoint-initdb.d/01-init-v2.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greflect -d greflect"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://greflect:${POSTGRES_PASSWORD:-greflect}@postgres:5432/greflect
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: greflect
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_DB_AGGREGATES_ENABLED: "true"
+
+  api:
+    build: ./apps/api
+    depends_on:
+      - postgres
+    env_file: .env
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL}
+      PORT_API: ${PORT_API:-4000}
+
+  worker:
+    build: ./apps/worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    env_file: .env
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL}
+      QDRANT_URL: ${QDRANT_URL}
+      XAI_API_KEY: ${XAI_API_KEY}
+      XAI_API_BASE: ${XAI_API_BASE}
+      XAI_MODEL: ${XAI_MODEL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL}
+      BRAVE_API_KEY: ${BRAVE_API_KEY}
+      STEP_INTERVAL_MS: ${STEP_INTERVAL_MS}
+      IDENTITY_EVERY_N: ${IDENTITY_EVERY_N}
+      SHORT_TERM_LIMIT: ${SHORT_TERM_LIMIT}
+      VECTOR_TOP_K: ${VECTOR_TOP_K}
+    restart: unless-stopped
+
+  web:
+    build: ./apps/web
+    depends_on:
+      - api
+    env_file: .env
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      PORT_WEB: ${PORT_WEB:-3000}
+
+volumes:
+  postgres_data:
+  qdrant_data:
