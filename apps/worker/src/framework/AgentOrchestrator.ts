@@ -46,18 +46,41 @@ export class AgentOrchestrator {
         // Map user-friendly names to actual memory types
         const mappedTypes = params.types?.map(type => {
           const typeMap: Record<string, string> = {
+            // Episodic memory types
             'experiences': 'episodic',
-            'insights': 'episodic', 
+            'experience': 'episodic',
+            'insights': 'episodic',
+            'insight': 'episodic',
             'reflections': 'episodic',
+            'reflection': 'episodic',
             'realizations': 'episodic',
+            'realization': 'episodic',
+            'episodic': 'episodic',
+
+            // Semantic memory types
             'concepts': 'semantic',
+            'concept': 'semantic',
             'definitions': 'semantic',
+            'definition': 'semantic',
             'knowledge': 'semantic',
+            'semantic': 'semantic',
+
+            // Procedural memory types
             'patterns': 'procedural',
+            'pattern': 'procedural',
             'strategies': 'procedural',
-            'behaviors': 'procedural'
+            'strategy': 'procedural',
+            'behaviors': 'procedural',
+            'behavior': 'procedural',
+            'procedural': 'procedural',
+
+            // Gaps and questions
+            'gaps': 'episodic',
+            'gap': 'episodic',
+            'questions': 'episodic',
+            'question': 'episodic'
           };
-          return typeMap[type] || type;
+          return typeMap[type] || type; // Return original type if no mapping found
         }).filter((type, index, arr) => arr.indexOf(type) === index); // Remove duplicates
 
         return await this.memoryManager.retrieveRelevantMemories(
@@ -211,14 +234,16 @@ TOOLS (use them actively):
 
 Be autonomous, intelligent, and tool-driven. Keep under 100 words total.`;
 
-    const response = await this.gptClient.chat.completions.create({
+            const response = await this.gptClient.chat.completions.create({
       model: 'gpt-5-nano',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: context }
       ],
       tools: this.getToolDefinitions(availableTools),
-      tool_choice: 'auto'
+      tool_choice: 'auto',
+      temperature: 0.7, // Add temperature for more creative responses
+      max_tokens: 500  // Ensure we get a response
     });
 
     return await this.processAgentResponse(response, 'questioner', availableTools);
@@ -252,7 +277,9 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
         { role: 'user', content: context }
       ],
       tools: this.getToolDefinitions(availableTools),
-      tool_choice: 'auto'
+      tool_choice: 'auto',
+      temperature: 0.8, // Slightly higher for more exploratory responses
+      max_tokens: 800  // Allow longer responses for exploration
     });
 
     return await this.processAgentResponse(response, 'explorer', availableTools);

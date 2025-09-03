@@ -17,17 +17,27 @@ export class AdvancedMemoryManager {
 
   private async initializeVectorCollections() {
     const collections = ['episodic', 'semantic', 'procedural'];
-    
+
     for (const collection of collections) {
       try {
-        await this.qdrant.createCollection(collection, {
-          vectors: {
-            size: 1536, // text-embedding-3-small dimensions
-            distance: 'Cosine'
-          }
-        });
+        // Check if collection exists first
+        const existingCollections = await this.qdrant.listCollections();
+        const exists = existingCollections.collections.some((c: any) => c.name === collection);
+
+        if (!exists) {
+          console.log(`[MEMORY] Creating vector collection: ${collection}`);
+          await this.qdrant.createCollection(collection, {
+            vectors: {
+              size: 1536, // text-embedding-3-small dimensions
+              distance: 'Cosine'
+            }
+          });
+          console.log(`[MEMORY] Successfully created collection: ${collection}`);
+        } else {
+          console.log(`[MEMORY] Collection ${collection} already exists`);
+        }
       } catch (error) {
-        console.log(`Vector collection ${collection} already exists or error:`, error);
+        console.error(`[MEMORY] Error with collection ${collection}:`, error);
       }
     }
   }
@@ -201,7 +211,15 @@ export class AdvancedMemoryManager {
     memoryTypes: Memory['type'][] = ['episodic', 'semantic', 'procedural'],
     limit: number = 10
   ): Promise<Memory[]> {
+    console.log(`[MEMORY] Searching for: "${query}" in types: ${memoryTypes.join(', ')}`);
+
     const embedding = await this.getEmbedding(query);
+    if (!embedding || embedding.length === 0) {
+      console.error('[MEMORY] Failed to generate embedding for query:', query);
+      return [];
+    }
+
+    console.log(`[MEMORY] Generated embedding with ${embedding.length} dimensions`);
     const memories: Memory[] = [];
 
     // Search each memory type
@@ -213,14 +231,19 @@ export class AdvancedMemoryManager {
           continue;
         }
         
+        console.log(`[MEMORY] Searching ${type} collection with limit ${Math.ceil(limit / memoryTypes.length)}`);
+
         const results = await this.qdrant.search(type, {
           vector: embedding,
           limit: Math.ceil(limit / memoryTypes.length),
-          score_threshold: 0.3 // Lowered threshold for better recall
+          score_threshold: 0.1 // Lower threshold for better recall
         });
+
+        console.log(`[MEMORY] Found ${results.length} results in ${type} collection`);
 
         for (const result of results) {
           if (result.payload) {
+            console.log(`[MEMORY] Result in ${type}: score=${result.score?.toFixed(3)}, id=${result.id}`);
             memories.push({
               id: result.id as string,
               type,
@@ -238,13 +261,45 @@ export class AdvancedMemoryManager {
     }
 
     // Sort by relevance and contextual importance
-    return memories
+    let sortedMemories = memories
       .sort((a, b) => {
         const scoreA = this.calculateContextualRelevance(a, context, query);
         const scoreB = this.calculateContextualRelevance(b, context, query);
         return scoreB - scoreA;
       })
       .slice(0, limit);
+
+    // If no memories found via vector search, try SQL fallback
+    if (sortedMemories.length === 0) {
+      console.log('[MEMORY] No results from vector search, trying SQL fallback');
+      try {
+        const sqlResults = await this.pool.query(`
+          SELECT id, type, content, timestamp, tags, metadata
+          FROM memories
+          WHERE type = ANY($1)
+          AND content::text ILIKE $2
+          ORDER BY timestamp DESC
+          LIMIT $3
+        `, [memoryTypes, `%${query}%`, limit]);
+
+        sortedMemories = sqlResults.rows.map(row => ({
+          id: row.id,
+          type: row.type,
+          content: row.content,
+          timestamp: new Date(row.timestamp),
+          tags: row.tags || [],
+          metadata: row.metadata || {},
+          relevanceScore: 0.5
+        }));
+
+        console.log(`[MEMORY] SQL fallback found ${sortedMemories.length} results`);
+      } catch (error) {
+        console.error('[MEMORY] SQL fallback failed:', error);
+      }
+    }
+
+    console.log(`[MEMORY] Returning ${sortedMemories.length} total memories`);
+    return sortedMemories;
   }
 
   // MEMORY SYNTHESIS: Combine memories to form new insights
