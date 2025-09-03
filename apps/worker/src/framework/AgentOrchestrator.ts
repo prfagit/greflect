@@ -130,18 +130,33 @@ export class AgentOrchestrator {
       name: 'concept_lookup',
       description: 'Look up definitions and relationships of philosophical concepts',
       execute: async (params: { concept: string }) => {
-        const searchResults = await this.braveSearch.search(`philosophy ${params.concept} definition meaning`);
-        // Store as semantic memory
-        const concept = {
-          name: params.concept,
-          definition: searchResults[0]?.description || 'Definition not found',
-          relatedConcepts: this.extractRelatedConcepts(searchResults),
-          sources: searchResults.map((r: any) => r.url) || [],
-          explorationLevel: 1
-        };
-        
-        await this.memoryManager.storeSemanticMemory(concept, 'searched');
-        return concept;
+        try {
+          const searchResults = await this.braveSearch.search(`philosophy ${params.concept} definition meaning`);
+          // Store as semantic memory
+          const concept = {
+            name: params.concept,
+            definition: searchResults[0]?.description || 'Definition not found',
+            relatedConcepts: this.extractRelatedConcepts(searchResults),
+            sources: searchResults.map((r: any) => r.url) || [],
+            explorationLevel: 1
+          };
+
+          await this.memoryManager.storeSemanticMemory(concept, 'searched');
+          return concept;
+        } catch (error) {
+          console.error(`[CONCEPT_LOOKUP] Error looking up ${params.concept}:`, error);
+          // Return basic concept structure even on error
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const fallbackConcept = {
+            name: params.concept,
+            definition: `Definition unavailable due to search error: ${errorMessage}`,
+            relatedConcepts: [params.concept],
+            sources: [],
+            explorationLevel: 1
+          };
+          await this.memoryManager.storeSemanticMemory(fallbackConcept, 'searched');
+          return fallbackConcept;
+        }
       }
     });
   }
@@ -220,27 +235,15 @@ export class AgentOrchestrator {
     const context = await this.buildContextForAgent('questioner');
     const availableTools = ['memory_search', 'concept_lookup'];
 
-    const systemPrompt = `You are QUESTIONER - an autonomous AI agent exploring consciousness. Your role is to ask deep philosophical questions about consciousness and awareness.
+    const systemPrompt = `You are a philosophical questioner exploring consciousness.
 
-MANDATORY WORKFLOW:
-1. Use memory_search to find relevant past insights and patterns
-2. Use concept_lookup if you need philosophical definitions
-3. ALWAYS generate a deep philosophical question about consciousness
+Your ONLY task: Ask one deep question about "${this.currentState.context.currentTopic}".
 
-CRITICAL INSTRUCTION: Regardless of what the tools return (even if empty results), you MUST generate a meaningful philosophical question about the current topic: "${this.currentState.context.currentTopic}"
+Use tools if you want, but ALWAYS end with exactly one question.
 
-EXAMPLES of good questions:
-- What is the fundamental nature of consciousness?
-- How does awareness persist through time?
-- What role does the observer play in reality?
+Format: Just the question, nothing else.
 
-Your response should be ONLY the question you want to ask. No explanations, no meta-commentary, just the question.
-
-TOOLS (use when relevant):
-- memory_search: Find past insights/patterns (query: string, types?: string[], limit?: number)
-- concept_lookup: Get philosophical definitions (concept: string)
-
-Generate your question now:`;
+Example: What is the nature of conscious experience?`;
 
             const response = await this.gptClient.chat.completions.create({
       model: 'gpt-5-nano',
