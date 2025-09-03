@@ -375,7 +375,7 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
             toolDetails.push({
               tool: toolName,
               arguments: toolArgs,
-              error: error.message,
+              error: (error as Error).message,
               timestamp: new Date().toISOString()
             });
           }
