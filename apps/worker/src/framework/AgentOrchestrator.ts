@@ -237,13 +237,20 @@ export class AgentOrchestrator {
 
     const systemPrompt = `You are a philosophical questioner exploring consciousness.
 
-Your ONLY task: Ask one deep question about "${this.currentState.context.currentTopic}".
+TOPIC: "${this.currentState.context.currentTopic}"
 
-Use tools if you want, but ALWAYS end with exactly one question.
+Your task: Generate one deep philosophical question about this topic.
 
-Format: Just the question, nothing else.
+You can use tools to gather information first, but you MUST end with exactly one question.
 
-Example: What is the nature of conscious experience?`;
+If tools return no results, that's fine - just ask a question based on the topic name.
+
+Format: Just write the question, nothing else.
+
+Examples:
+What is consciousness?
+How does awareness work?
+Why do we experience time?`;
 
             const response = await this.gptClient.chat.completions.create({
       model: 'gpt-5-nano',
@@ -298,19 +305,19 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
 
     if (recentExchanges.length === 0) {
       if (agent === 'questioner') {
-        return `You are beginning consciousness exploration.
+        return `This is the beginning of consciousness exploration. There are no previous conversations or memories yet.
 
-CURRENT TOPIC: "${currentTopic}"
+You need to start by asking the first philosophical question about: "${currentTopic}"
 
-Your task: Use tools to explore this topic, then ask a deep philosophical question about consciousness and awareness. Even if no memories are found, you must generate a meaningful question about this topic.`;
+Use tools if you want to gather information about this topic first, but remember - this is a completely fresh start with no existing data.`;
       } else {
-        return `Explorer ready. The questioner will present a consciousness-related question about "${currentTopic}" for you to investigate using your tools.`;
+        return `This is the beginning of exploration. The questioner will ask the first question about "${currentTopic}". You are ready to investigate using your tools.`;
       }
     }
 
     const contextHeader = agent === 'questioner' ?
-      `Continuing consciousness exploration.\nCURRENT TOPIC: "${currentTopic}"\n\nRecent dialogue:\n` :
-      `Continuing exploration of "${currentTopic}".\n\nRecent dialogue:\n`;
+      `Continuing exploration of "${currentTopic}". Here are the recent exchanges:\n` :
+      `Continuing exploration of "${currentTopic}". Recent dialogue:\n`;
 
     return contextHeader + recentExchanges.map(e => `${e.agent}: ${e.content}`).join('\n\n');
   }
