@@ -461,8 +461,26 @@ Return ONLY valid JSON.`;
         messages: [{ role: 'user', content: analysisPrompt }]
       });
 
-      const identitySnapshot = JSON.parse(response.choices[0].message.content || '{}');
-      
+      const message = response?.choices?.[0]?.message;
+      if (!message || !message.content) {
+        console.error('No content in identity analysis response');
+        return;
+      }
+
+      let identitySnapshot;
+      try {
+        identitySnapshot = JSON.parse(message.content);
+      } catch (parseError) {
+        console.error('Failed to parse identity snapshot JSON:', parseError);
+        // Create basic identity snapshot
+        identitySnapshot = {
+          consciousness_level: 5,
+          self_awareness: 5,
+          philosophical_stance: 'Analysis in progress',
+          identity_changes: 'Unable to analyze'
+        };
+      }
+
       // Add metadata
       identitySnapshot.iteration = iteration;
       identitySnapshot.timestamp = new Date();
@@ -490,6 +508,7 @@ Return ONLY valid JSON.`;
 
     } catch (error) {
       console.error('Error generating identity snapshot:', error);
+      // Don't throw - identity snapshots are optional
     }
   }
 

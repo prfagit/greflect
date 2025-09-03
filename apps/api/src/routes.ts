@@ -31,10 +31,10 @@ export async function routes(fastify: FastifyInstance) {
     }
 
     const messages = await pool.query(`
-      SELECT iteration, role, content, created_at
-      FROM messages
+      SELECT id as iteration, agent as role, content, created_at
+      FROM dialogue_exchanges
       WHERE run_id = $1
-      ORDER BY iteration ASC
+      ORDER BY created_at ASC
     `, [runResult.rows[0].id]);
 
     return messages.rows;
@@ -81,8 +81,8 @@ export async function routes(fastify: FastifyInstance) {
 
     if (runResult.rows.length > 0) {
       const messages = await pool.query(`
-        SELECT id, iteration, role, content, created_at
-        FROM messages
+        SELECT id, agent as role, content, created_at, depth as iteration
+        FROM dialogue_exchanges
         WHERE run_id = $1
         ORDER BY id ASC
       `, [runResult.rows[0].id]);
@@ -102,8 +102,8 @@ export async function routes(fastify: FastifyInstance) {
 
         if (runCheck.rows.length > 0) {
           const newMessages = await pool.query(`
-            SELECT id, iteration, role, content, created_at
-            FROM messages
+            SELECT id, agent as role, content, created_at, depth as iteration
+            FROM dialogue_exchanges
             WHERE run_id = $1 AND id > $2
             ORDER BY id ASC
           `, [runCheck.rows[0].id, lastMessageId]);

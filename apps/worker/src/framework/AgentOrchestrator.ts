@@ -75,18 +75,30 @@ export class AgentOrchestrator {
       description: 'Synthesize memories to identify patterns and generate new insights',
       execute: async (params: { memories?: string[] }) => {
         // Validate that memories parameter exists and is an array
-        if (!params.memories || !Array.isArray(params.memories)) {
+        if (!params.memories || !Array.isArray(params.memories) || params.memories.length === 0) {
           console.log('Warning: memory_synthesis called without valid memories array, returning empty result');
           return { synthesis: 'No memories provided for synthesis', patterns: [] };
         }
-        
-        const memories = await Promise.all(
-          params.memories.map(id => this.getMemoryById(id))
-        );
-        return await this.memoryManager.synthesizeMemories(
-          memories.filter(m => m !== null),
-          this.currentState.context
-        );
+
+        try {
+          const memories = await Promise.all(
+            params.memories.map(id => this.getMemoryById(id))
+          );
+          const validMemories = memories.filter(m => m !== null);
+
+          if (validMemories.length === 0) {
+            console.log('Warning: all memory IDs were invalid, returning empty result');
+            return { synthesis: 'No valid memories found for synthesis', patterns: [] };
+          }
+
+          return await this.memoryManager.synthesizeMemories(
+            validMemories,
+            this.currentState.context
+          );
+        } catch (error) {
+          console.error('Error in memory synthesis:', error);
+          return { synthesis: 'Error during memory synthesis', patterns: [] };
+        }
       }
     });
 
@@ -250,7 +262,13 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
     const recentExchanges = this.currentState.context.recentExchanges.slice(-10);
     
     if (recentExchanges.length === 0) {
-      return "Beginning initial conversation.";
+      if (agent === 'questioner') {
+        return `You are beginning consciousness exploration. Current topic: "${this.currentState.context.currentTopic}"
+        
+Your task: Use memory_search to find related patterns, then ask a deep philosophical question about this topic.`;
+      } else {
+        return `Explorer ready. The questioner will present a consciousness-related question for you to investigate using your tools.`;
+      }
     }
 
     return recentExchanges.map(e => `${e.agent}: ${e.content}`).join('\n\n');
@@ -334,11 +352,25 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
 
   // Helper methods
   private async processAgentResponse(
-    apiResponse: any, 
-    agent: 'questioner' | 'explorer', 
+    apiResponse: any,
+    agent: 'questioner' | 'explorer',
     availableTools: string[]
   ): Promise<AgentResponse> {
-    const message = apiResponse.choices[0].message;
+    // Safe access with defaults
+    const message = apiResponse?.choices?.[0]?.message;
+    if (!message) {
+      console.error(`[${agent.toUpperCase()}] No message in API response`);
+      return {
+        content: 'Error: No response from AI model',
+        type: 'response',
+        confidence: 0,
+        suggestedNextAgent: agent === 'questioner' ? 'explorer' : 'questioner',
+        toolsUsed: [],
+        memoryReferences: [],
+        newInsights: []
+      };
+    }
+
     let content = message.content || '';
     const toolsUsed: string[] = [];
     const memoryReferences: string[] = [];
@@ -367,8 +399,14 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
             console.log(`[${agent.toUpperCase()}] Tool ${toolName} result:`, toolResult);
             
             // Store tool results in memory references for tracking
-            if (toolResult && Array.isArray(toolResult)) {
-              memoryReferences.push(...toolResult.map((item: any) => item.id || 'unknown'));
+            if (toolResult) {
+              if (Array.isArray(toolResult)) {
+                memoryReferences.push(...toolResult.map((item: any) => item?.id || 'unknown'));
+              } else if (toolResult.id) {
+                memoryReferences.push(toolResult.id);
+              } else if (typeof toolResult === 'object') {
+                memoryReferences.push('unknown');
+              }
             }
           } catch (error) {
             console.error(`[${agent.toUpperCase()}] Error executing tool ${toolName}:`, error);
@@ -516,9 +554,10 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
 
   private async getMemoryById(id: string): Promise<any> {
     try {
-      // Try to get memory from memory manager
+      // Try to get memory from memory manager by ID
+      // Use the ID directly in a query to find the specific memory
       const memories = await this.memoryManager.retrieveRelevantMemories(
-        id, // Use the ID as a query
+        `id:${id}`, // Use ID as search query
         this.currentState.context,
         ['episodic', 'semantic', 'procedural'],
         1

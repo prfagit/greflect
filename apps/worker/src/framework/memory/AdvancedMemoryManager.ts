@@ -67,24 +67,29 @@ export class AdvancedMemoryManager {
     if (significance !== 'low') {
       try {
         const embedding = await this.getEmbedding(exchange.content);
-        await this.qdrant.upsert('episodic', {
-          wait: true,
-          points: [{
-            id: memory.id,
-            vector: embedding,
-            payload: {
-              runId,
-              agent: exchange.agent,
-              significance,
-              depth: exchange.depth,
-              content: exchange.content,
-              timestamp: memory.timestamp.toISOString()
-            }
-          }]
-        });
-        console.log(`Stored episodic memory in vector DB: ${memory.id}`);
+        if (embedding && embedding.length > 0) {
+          await this.qdrant.upsert('episodic', {
+            wait: true,
+            points: [{
+              id: memory.id,
+              vector: embedding,
+              payload: {
+                runId,
+                agent: exchange.agent,
+                significance,
+                depth: exchange.depth,
+                content: exchange.content,
+                timestamp: memory.timestamp.toISOString()
+              }
+            }]
+          });
+          console.log(`Stored episodic memory in vector DB: ${memory.id}`);
+        } else {
+          console.error('Failed to generate embedding for episodic memory');
+        }
       } catch (error) {
         console.error('Error storing episodic memory in vector DB:', error);
+        // Continue without vector DB - still store in SQL
       }
     }
   }
@@ -123,22 +128,27 @@ export class AdvancedMemoryManager {
     // Vector storage for semantic search
     try {
       const embedding = await this.getEmbedding(`${concept.name}: ${concept.definition}`);
-      await this.qdrant.upsert('semantic', {
-        wait: true,
-        points: [{
-          id: memory.id,
-          vector: embedding,
-        payload: {
-          name: concept.name,
-          definition: concept.definition,
-          explorationLevel: concept.explorationLevel,
-          source
-        }
-      }]
-    });
-    console.log(`Stored semantic memory in vector DB: ${concept.name}`);
+      if (embedding && embedding.length > 0) {
+        await this.qdrant.upsert('semantic', {
+          wait: true,
+          points: [{
+            id: memory.id,
+            vector: embedding,
+          payload: {
+            name: concept.name,
+            definition: concept.definition,
+            explorationLevel: concept.explorationLevel,
+            source
+          }
+        }]
+      });
+      console.log(`Stored semantic memory in vector DB: ${concept.name}`);
+      } else {
+        console.error('Failed to generate embedding for semantic memory');
+      }
     } catch (error) {
       console.error('Error storing semantic memory in vector DB:', error);
+      // Continue without vector DB - still store in SQL
     }
   }
 
