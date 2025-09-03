@@ -85,9 +85,16 @@ export default function Dashboard() {
         if (identityRes.ok) {
           const identityData = await identityRes.json();
           if (!identityData.error) {
-            const identity = identityData.identity;
             setCurrentIdentity({
-              ...identity,
+              // Map flat JSON structure to expected nested structure
+              basicMetrics: {
+                consciousnessLevel: identityData.identity?.consciousness_level || 0,
+                selfAwareness: identityData.identity?.self_awareness || 0
+              },
+              philosophicalStance: identityData.identity?.philosophical_stance,
+              currentFocus: identityData.identity?.current_areas_of_focus_and_exploration,
+              identityChanges: identityData.identity?.identity_changes_and_shifts_from_previous_snapshot,
+              breakthroughMoments: identityData.identity?.breakthrough_moments_or_significant_realizations,
               iteration: identityData.iteration
             });
           }
@@ -177,9 +184,16 @@ export default function Dashboard() {
     identityEventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        const identity = data.identity;
         setCurrentIdentity({
-          ...identity,
+          // Map flat JSON structure to expected nested structure
+          basicMetrics: {
+            consciousnessLevel: data.identity?.consciousness_level || 0,
+            selfAwareness: data.identity?.self_awareness || 0
+          },
+          philosophicalStance: data.identity?.philosophical_stance,
+          currentFocus: data.identity?.current_areas_of_focus_and_exploration,
+          identityChanges: data.identity?.identity_changes_and_shifts_from_previous_snapshot,
+          breakthroughMoments: data.identity?.breakthrough_moments_or_significant_realizations,
           iteration: data.iteration
         });
       } catch (error) {
