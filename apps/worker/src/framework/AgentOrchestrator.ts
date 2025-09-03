@@ -241,9 +241,7 @@ Be autonomous, intelligent, and tool-driven. Keep under 100 words total.`;
         { role: 'user', content: context }
       ],
       tools: this.getToolDefinitions(availableTools),
-      tool_choice: 'auto',
-      temperature: 0.7, // Add temperature for more creative responses
-      max_tokens: 500  // Ensure we get a response
+      tool_choice: 'auto'
     });
 
     return await this.processAgentResponse(response, 'questioner', availableTools);
@@ -277,9 +275,7 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
         { role: 'user', content: context }
       ],
       tools: this.getToolDefinitions(availableTools),
-      tool_choice: 'auto',
-      temperature: 0.8, // Slightly higher for more exploratory responses
-      max_tokens: 800  // Allow longer responses for exploration
+      tool_choice: 'auto'
     });
 
     return await this.processAgentResponse(response, 'explorer', availableTools);
