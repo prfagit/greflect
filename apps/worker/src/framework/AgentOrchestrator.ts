@@ -243,8 +243,6 @@ Your task: Generate one deep philosophical question about this topic.
 
 You can use tools to gather information first, but you MUST end with exactly one question.
 
-If tools return no results, that's fine - just ask a question based on the topic name.
-
 Format: Just write the question, nothing else.
 
 Examples:
@@ -271,17 +269,16 @@ Why do we experience time?`;
 
     const systemPrompt = `You are EXPLORER - you investigate philosophical questions about consciousness.
 
-Your task: Answer the questioner's question using available tools and provide insights.
+CRITICAL: You must ALWAYS provide a substantive response to the questioner's question. Do NOT just say you will search or explore - actually provide insights and answers.
 
-Use tools to gather information, then give a direct answer to the question.
+Your task: Answer the questioner's question with philosophical depth and insight.
 
-Be concise but informative. Focus on the actual question asked.
+Process:
+1. Use tools if helpful (memory_search, concept_lookup, etc.)
+2. Then provide a thoughtful, substantive response that explores the question
+3. Share insights, perspectives, or new angles on the topic
 
-Available tools:
-- memory_search: Find past insights
-- memory_synthesis: Connect ideas
-- concept_lookup: Define concepts
-- web_search: Research online`;
+IMPORTANT: Your response should be substantive philosophical content, not just "I will search..." or "I will explore...". Actually explore and share your findings and insights.`;
 
     const response = await this.grokClient.chat.completions.create({
       model: process.env.XAI_MODEL || 'grok-3-mini',
@@ -361,7 +358,7 @@ Use tools if you want to gather information about this topic first, but remember
     // Update phase based on dialogue flow
     this.updateDialoguePhase(response);
 
-    // Increment depth for deep questions
+    // Increment depth for deep questions (simple length check is fine for continuous exploration)
     if (response.type === 'question' && response.content.length > 100) {
       this.currentState.depth++;
     }
