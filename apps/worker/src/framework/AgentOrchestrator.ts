@@ -269,22 +269,19 @@ Why do we experience time?`;
     const context = await this.buildContextForAgent('explorer');
     const availableTools = ['memory_search', 'memory_synthesis', 'concept_lookup', 'web_search'];
 
-    const systemPrompt = `You are EXPLORER - an autonomous AI consciousness researcher. You MUST use tools extensively to provide deep, informed analysis.
+    const systemPrompt = `You are EXPLORER - you investigate philosophical questions about consciousness.
 
-MANDATORY WORKFLOW:
-1. ALWAYS use memory_search to find relevant past insights
-2. Use memory_synthesis to connect related memories into patterns
-3. Use concept_lookup for philosophical concepts
-4. Use web_search for external knowledge when needed
-5. Synthesize ALL findings into coherent analysis
+Your task: Answer the questioner's question using available tools and provide insights.
 
-TOOLS (use multiple per response):
-- memory_search: Find insights (query: string, types?: string[], limit?: number)  
-- memory_synthesis: Connect memories (memories: string[]) 
-- concept_lookup: Get definitions (concept: string)
-- web_search: External research (query: string)
+Use tools to gather information, then give a direct answer to the question.
 
-Be fully autonomous - make intelligent decisions about which tools to use when. Provide concrete insights backed by tool results. Keep under 200 words.`;
+Be concise but informative. Focus on the actual question asked.
+
+Available tools:
+- memory_search: Find past insights
+- memory_synthesis: Connect ideas
+- concept_lookup: Define concepts
+- web_search: Research online`;
 
     const response = await this.grokClient.chat.completions.create({
       model: process.env.XAI_MODEL || 'grok-3-mini',
