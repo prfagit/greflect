@@ -281,23 +281,38 @@ export class GreflectV2 {
     if (stateResult.rows.length > 0) {
       const savedState = stateResult.rows[0];
       console.log(`Restoring state from depth ${savedState.depth}, topic: ${savedState.current_topic}`);
-      
-      // Restore orchestrator state
-      this.orchestrator.restoreState({
+
+      // Clean up any corrupted state data by creating fresh state if needed
+      try {
+        // Restore orchestrator state
+        this.orchestrator.restoreState({
         id: savedState.id,
         currentAgent: savedState.current_agent,
         phase: savedState.phase,
         depth: savedState.depth,
         context: {
-          currentTopic: savedState.current_topic,
+          currentTopic: savedState.current_topic || 'consciousness',
           focusAreas: this.safeJsonParse(savedState.focus_areas, []),
           assumptions: this.safeJsonParse(savedState.assumptions, []),
           contradictions: this.safeJsonParse(savedState.contradictions, []),
           openQuestions: this.safeJsonParse(savedState.open_questions, []),
           recentExchanges: [] // Will be populated from database
         },
-        questionThread: this.safeJsonParse(savedState.question_thread, {})
-      });
+        questionThread: this.safeJsonParse(savedState.question_thread, {
+          rootQuestion: 'What is consciousness?',
+          subQuestions: [],
+          exploredAspects: [],
+          unexploredAspects: ['awareness', 'self', 'experience'],
+          depth: 0
+        })
+        });
+      } catch (restoreError) {
+        console.error('ERROR: Failed to restore dialogue state, creating fresh state:', restoreError);
+        console.log(`Creating fresh dialogue state`);
+        // Store initial state for corrupted runs
+        await this.storeDialogueState();
+        return;
+      }
     } else {
       console.log(`Creating initial dialogue state`);
       // Store initial state for new runs
@@ -310,35 +325,50 @@ export class GreflectV2 {
    */
   private async storeDialogueState(): Promise<void> {
     const state = this.orchestrator.getCurrentState();
-    
-    await this.pool.query(`
-      INSERT INTO dialogue_states (
-        id, run_id, current_agent, phase, depth, current_topic,
-        focus_areas, assumptions, contradictions, open_questions,
-        question_thread, working_memory
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      ON CONFLICT (id) DO UPDATE SET
-        current_agent = EXCLUDED.current_agent,
-        phase = EXCLUDED.phase,
-        depth = EXCLUDED.depth,
-        current_topic = EXCLUDED.current_topic,
-        focus_areas = EXCLUDED.focus_areas,
-        assumptions = EXCLUDED.assumptions,
-        contradictions = EXCLUDED.contradictions,
-        open_questions = EXCLUDED.open_questions,
-        question_thread = EXCLUDED.question_thread,
-        working_memory = EXCLUDED.working_memory,
-        updated_at = NOW()
-    `, [
-      state.id, this.runId, state.currentAgent, state.phase, state.depth,
-      state.context.currentTopic,
-      JSON.stringify(state.context.focusAreas),
-      JSON.stringify(state.context.assumptions),
-      JSON.stringify(state.context.contradictions),
-      JSON.stringify(state.context.openQuestions),
-      JSON.stringify(state.questionThread),
-      JSON.stringify(state.context)
-    ]);
+
+    // Safely serialize JSON fields with fallbacks
+    const serializeJson = (data: any, fallback: any = null) => {
+      try {
+        return JSON.stringify(data || fallback);
+      } catch (error) {
+        console.error('JSON serialization error:', error);
+        return JSON.stringify(fallback);
+      }
+    };
+
+    try {
+      await this.pool.query(`
+        INSERT INTO dialogue_states (
+          id, run_id, current_agent, phase, depth, current_topic,
+          focus_areas, assumptions, contradictions, open_questions,
+          question_thread, working_memory
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          current_agent = EXCLUDED.current_agent,
+          phase = EXCLUDED.phase,
+          depth = EXCLUDED.depth,
+          current_topic = EXCLUDED.current_topic,
+          focus_areas = EXCLUDED.focus_areas,
+          assumptions = EXCLUDED.assumptions,
+          contradictions = EXCLUDED.contradictions,
+          open_questions = EXCLUDED.open_questions,
+          question_thread = EXCLUDED.question_thread,
+          working_memory = EXCLUDED.working_memory,
+          updated_at = NOW()
+      `, [
+        state.id, this.runId, state.currentAgent, state.phase, state.depth,
+        state.context.currentTopic || '',
+        serializeJson(state.context.focusAreas, []),
+        serializeJson(state.context.assumptions, []),
+        serializeJson(state.context.contradictions, []),
+        serializeJson(state.context.openQuestions, []),
+        serializeJson(state.questionThread, {}),
+        serializeJson(state.context, {})
+      ]);
+    } catch (error) {
+      console.error('ERROR: Failed to store dialogue state:', error);
+      // Don't throw - state storage is not critical
+    }
   }
 
   /**
