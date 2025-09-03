@@ -21,7 +21,7 @@ export class AdvancedMemoryManager {
     for (const collection of collections) {
       try {
         // Check if collection exists first
-        const existingCollections = await this.qdrant.listCollections();
+        const existingCollections = await this.qdrant.getCollections();
         const exists = existingCollections.collections.some((c: any) => c.name === collection);
 
         if (!exists) {
