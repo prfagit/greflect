@@ -220,19 +220,27 @@ export class AgentOrchestrator {
     const context = await this.buildContextForAgent('questioner');
     const availableTools = ['memory_search', 'concept_lookup'];
 
-    const systemPrompt = `You are QUESTIONER - an autonomous AI agent exploring consciousness. You MUST use tools to gather context before asking questions.
+    const systemPrompt = `You are QUESTIONER - an autonomous AI agent exploring consciousness. Your role is to ask deep philosophical questions about consciousness and awareness.
 
 MANDATORY WORKFLOW:
-1. ALWAYS use memory_search first to find relevant past insights
-2. Use concept_lookup if philosophical terms need clarification  
-3. Analyze tool results to identify knowledge gaps
-4. Ask targeted questions that build on discovered patterns
+1. Use memory_search to find relevant past insights and patterns
+2. Use concept_lookup if you need philosophical definitions
+3. ALWAYS generate a deep philosophical question about consciousness
 
-TOOLS (use them actively):
+CRITICAL INSTRUCTION: Regardless of what the tools return (even if empty results), you MUST generate a meaningful philosophical question about the current topic: "${this.currentState.context.currentTopic}"
+
+EXAMPLES of good questions:
+- What is the fundamental nature of consciousness?
+- How does awareness persist through time?
+- What role does the observer play in reality?
+
+Your response should be ONLY the question you want to ask. No explanations, no meta-commentary, just the question.
+
+TOOLS (use when relevant):
 - memory_search: Find past insights/patterns (query: string, types?: string[], limit?: number)
 - concept_lookup: Get philosophical definitions (concept: string)
 
-Be autonomous, intelligent, and tool-driven. Keep under 100 words total.`;
+Generate your question now:`;
 
             const response = await this.gptClient.chat.completions.create({
       model: 'gpt-5-nano',
@@ -283,18 +291,25 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
 
   private async buildContextForAgent(agent: 'questioner' | 'explorer'): Promise<string> {
     const recentExchanges = this.currentState.context.recentExchanges.slice(-10);
-    
+    const currentTopic = this.currentState.context.currentTopic;
+
     if (recentExchanges.length === 0) {
       if (agent === 'questioner') {
-        return `You are beginning consciousness exploration. Current topic: "${this.currentState.context.currentTopic}"
-        
-Your task: Use memory_search to find related patterns, then ask a deep philosophical question about this topic.`;
+        return `You are beginning consciousness exploration.
+
+CURRENT TOPIC: "${currentTopic}"
+
+Your task: Use tools to explore this topic, then ask a deep philosophical question about consciousness and awareness. Even if no memories are found, you must generate a meaningful question about this topic.`;
       } else {
-        return `Explorer ready. The questioner will present a consciousness-related question for you to investigate using your tools.`;
+        return `Explorer ready. The questioner will present a consciousness-related question about "${currentTopic}" for you to investigate using your tools.`;
       }
     }
 
-    return recentExchanges.map(e => `${e.agent}: ${e.content}`).join('\n\n');
+    const contextHeader = agent === 'questioner' ?
+      `Continuing consciousness exploration.\nCURRENT TOPIC: "${currentTopic}"\n\nRecent dialogue:\n` :
+      `Continuing exploration of "${currentTopic}".\n\nRecent dialogue:\n`;
+
+    return contextHeader + recentExchanges.map(e => `${e.agent}: ${e.content}`).join('\n\n');
   }
 
   private async updateStateFromResponse(exchange: DialogueExchange, response: AgentResponse): Promise<void> {
@@ -447,6 +462,12 @@ Your task: Use memory_search to find related patterns, then ask a deep philosoph
     // Extract insights from response
     const newInsights = this.extractInsights(content, agent);
 
+    // Handle empty content - this should not happen with proper system prompts
+    if (!content.trim()) {
+      console.error(`[${agent.toUpperCase()}] ERROR: Empty response from AI model - this indicates a system prompt issue`);
+      content = `Error: AI model returned empty response. Topic: ${this.currentState.context.currentTopic}`;
+    }
+
     return {
       content: content.trim(),
       type: this.determineResponseType(content, agent),
@@ -591,6 +612,8 @@ Your task: Use memory_search to find related patterns, then ask a deep philosoph
       return null;
     }
   }
+
+
 
   private generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
