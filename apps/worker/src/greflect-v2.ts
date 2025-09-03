@@ -32,10 +32,15 @@ export class GreflectV2 {
   async initialize(): Promise<void> {
     try {
       console.log('Initializing GREFLECT v2');
-      
+
       // Resume existing run or create new one
+      console.log('Getting or creating run...');
       this.runId = await this.getOrCreateRun();
       console.log(`Resuming exploration session: ${this.runId}`);
+
+      if (!this.runId) {
+        throw new Error('Failed to get or create run ID');
+      }
 
       this.orchestrator = new AgentOrchestrator(
         this.gptClient,
@@ -212,15 +217,18 @@ export class GreflectV2 {
    * Get existing run or create new one - ensures continuous learning
    */
   private async getOrCreateRun(): Promise<string> {
-    // First, find the run with the most dialogue data (main continuation run)
-    const activeRun = await this.pool.query(`
-      SELECT r.id, r.started_at, COUNT(de.id) as message_count
-      FROM runs r
-      LEFT JOIN dialogue_exchanges de ON r.id = de.run_id
-      GROUP BY r.id, r.started_at
-      ORDER BY message_count DESC, r.started_at DESC
-      LIMIT 1
-    `);
+    try {
+      // First, find the run with the most dialogue data (main continuation run)
+      console.log('Querying database for existing runs...');
+      const activeRun = await this.pool.query(`
+        SELECT r.id, r.started_at, COUNT(de.id) as message_count
+        FROM runs r
+        LEFT JOIN dialogue_exchanges de ON r.id = de.run_id
+        GROUP BY r.id, r.started_at
+        ORDER BY message_count DESC, r.started_at DESC
+        LIMIT 1
+      `);
+      console.log(`Found ${activeRun.rows.length} existing runs`);
     
     if (activeRun.rows.length > 0 && activeRun.rows[0].message_count > 0) {
       const runId = activeRun.rows[0].id;
@@ -234,6 +242,10 @@ export class GreflectV2 {
     
     // If no runs with data exist, create new one
     return await this.createRun();
+    } catch (error) {
+      console.error('ERROR: Failed to get or create run:', error);
+      throw error;
+    }
   }
 
   /**
@@ -499,13 +511,23 @@ Return ONLY valid JSON.`;
       identitySnapshot.timestamp = new Date();
       identitySnapshot.run_id = this.runId;
 
-      // Store in database
-      await this.pool.query(`
-        INSERT INTO identity_snapshots (run_id, iteration, identity)
-        VALUES ($1, $2, $3)
-      `, [this.runId, iteration, JSON.stringify(identitySnapshot)]);
+      // Store in database - only if we have a valid runId
+      if (!this.runId) {
+        console.error('ERROR: Cannot store identity snapshot - no valid runId');
+        return;
+      }
 
-      console.log(`AI-analyzed identity snapshot captured at iteration ${iteration}`);
+      try {
+        await this.pool.query(`
+          INSERT INTO identity_snapshots (run_id, iteration, identity)
+          VALUES ($1, $2, $3)
+        `, [this.runId, iteration, JSON.stringify(identitySnapshot)]);
+
+        console.log(`AI-analyzed identity snapshot captured at iteration ${iteration}`);
+      } catch (dbError) {
+        console.error('ERROR: Failed to store identity snapshot in database:', dbError);
+        console.error('runId:', this.runId, 'iteration:', iteration);
+      }
       if (identitySnapshot.consciousness_level) {
         console.log(`   Consciousness Level: ${identitySnapshot.consciousness_level}/10`);
       }
