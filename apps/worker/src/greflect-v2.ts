@@ -92,6 +92,12 @@ export class GreflectV2 {
           await this.startNewQuestionThread();
         }
 
+        // Safety check: If we've been on the same depth for too many steps, force a reset
+        if (stepCount % 50 === 0 && currentState.depth === 0 && stepCount > 50) {
+          console.log(`⚠️  STUCK DETECTED: Been at depth 0 for ${stepCount} steps. Forcing topic refresh...\n`);
+          await this.startNewQuestionThread();
+        }
+
         // Execute dialogue step
         const exchange = await this.orchestrator.executeDialogueStep();
         
@@ -132,6 +138,13 @@ export class GreflectV2 {
         
         console.log(`Waiting ${this.stepInterval}ms for next step...\n`);
         await this.sleep(this.stepInterval);
+
+        // Log continuous operation status every 10 steps
+        if (stepCount % 10 === 0) {
+          const uptime = Date.now() - this.sessionStartTime.getTime();
+          const uptimeMinutes = Math.floor(uptime / (1000 * 60));
+          console.log(`🔄 CONTINUOUS OPERATION: Step ${stepCount}, Uptime: ${uptimeMinutes}min, Depth: ${currentState.depth}`);
+        }
 
       } catch (error) {
         consecutiveErrors++;
