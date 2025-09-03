@@ -550,7 +550,14 @@ Be fully autonomous - make intelligent decisions about which tools to use when. 
       // Ensure required arrays exist
       insights: this.currentState.insights || []
     };
-    console.log(`Restored orchestrator state: ${state.currentAgent} at depth ${state.depth}`);
+    
+    // Fix corrupted depth
+    if (this.currentState.depth > 10) {
+      console.log(`Corrupted depth detected (${this.currentState.depth}), resetting to 0`);
+      this.currentState.depth = 0;
+    }
+    
+    console.log(`Restored orchestrator state: ${state.currentAgent} at depth ${this.currentState.depth}`);
   }
 
   public getRecentInsights(limit: number = 5): Insight[] {

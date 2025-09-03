@@ -166,7 +166,7 @@ export class GreflectV2 {
    */
   private async startNewQuestionThread(): Promise<void> {
     const currentState = this.orchestrator.getCurrentState();
-    const unexploredAspects = currentState.questionThread.unexploredAspects;
+    const unexploredAspects = currentState.questionThread?.unexploredAspects || [];
     
     if (unexploredAspects.length > 0) {
       // Pick a random unexplored aspect
